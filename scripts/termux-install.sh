@@ -24,11 +24,11 @@ if [ ! -f .env ]; then
   cp .env.example .env
   echo
   echo ">> Podešavanje ključeva (možeš kasnije da menjaš sa: nano .env)"
-  read -r -p "   Kako da te zovem? [Dario]: " owner
+  read -r -p "   Kako da te zovem? [Dario]: " owner < /dev/tty
   set_env OWNER_NAME "${owner:-Dario}"
-  read -r -p "   Nalepi GEMINI ključ (aistudio.google.com/apikey): " gemini
+  read -r -p "   Nalepi GEMINI ključ (aistudio.google.com/apikey): " gemini < /dev/tty
   set_env GEMINI_API_KEY "$gemini"
-  read -r -p "   Nalepi GROQ ključ (console.groq.com/keys) ili samo Enter za preskakanje: " groq
+  read -r -p "   Nalepi GROQ ključ (console.groq.com/keys) ili samo Enter za preskakanje: " groq < /dev/tty
   set_env GROQ_API_KEY "$groq"
 fi
 mkdir -p data
@@ -49,8 +49,11 @@ if grep -q '^WHATSAPP_MODE=bridge' .env; then
   (cd whatsapp-bridge && npm install --omit=dev)
 fi
 
+chmod +x scripts/*.sh
+bash scripts/permissions.sh
+
 echo
-echo ">> Gotovo. Sledeće:"
-echo "   1) Proveri dozvole (Android će pitati - dozvoli sve):"
-echo "        termux-sms-list -l 1; termux-call-log -l 1; termux-contact-list | head -5"
-echo "   2) Pokreni Jarvisa:   ./scripts/start.sh --open"
+echo ">> Instalacija gotova! Pokrećem Jarvisa - HUD će se otvoriti u Chrome-u."
+echo "   (Sledeći put: cd ~/jarvis-prototip && ./scripts/start.sh --open)"
+echo "   Za gašenje: CTRL pa C."
+exec ./scripts/start.sh --open
