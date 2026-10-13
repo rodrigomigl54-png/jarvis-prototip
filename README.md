@@ -16,7 +16,7 @@ zove bez tvog ✅**. Svaki odgovor, SMS, mejl i poziv prvo dobiješ kao nacrt sa
 |---|---|---|
 | Razgovor sa Jarvisom (tekst + glas) | ✅ | HUD u pregledaču telefona; Gemini/Groq free tier; srpski glas (edge-tts) |
 | Automatsko prebacivanje LLM-a | ✅ | Gemini → Groq kad se potroši limit ili pukne |
-| Propušten poziv → ko je zvao + kontekst + predlog SMS-a | ✅ | Termux:API čita listu poziva |
+| Propušten poziv → ko je zvao + kontekst + predlog poruke | ✅ | običan poziv → SMS, WhatsApp poziv → WhatsApp poruka |
 | Jarvis **pozove** nekoga (posle tvog ✅) | ✅ | telefon okrene broj, **ti pričaš** |
 | Jarvis **priča u pozivu** umesto tebe | ❌ | Android ne dozvoljava aplikacijama da govore u običnom pozivu. Moguće samo uz plaćeni Twilio (vidi dole) |
 | SMS: čitanje + nacrt odgovora + slanje posle ✅ | ✅ | Termux:API |
@@ -63,14 +63,16 @@ Jednom otvori **Termux:Boot** da bi se Jarvis sam palio posle restarta telefona.
 ### 3. Preuzmi Jarvisa i instaliraj
 U Termux-u:
 ```bash
-pkg install -y git
-git clone https://github.com/rodrigomigl54-png/jarvis-prototip.git
+pkg update -y && pkg install -y git
+git clone -b claude/sleepy-fermat-hj9eo6 https://github.com/rodrigomigl54-png/jarvis-prototip.git
 cd jarvis-prototip
 bash scripts/termux-install.sh
 ```
+Skripta na kraju pita kako da te zove i traži da nalepiš Gemini (i opciono Groq) ključ.
 
-### 4. Ključevi (`nano .env`)
+### 4. Ključevi
 Minimum: **`GEMINI_API_KEY`**. Preporučeno i **`GROQ_API_KEY`** (rezervni LLM + prepoznavanje glasa).
+Instalacija ih pita sama; kasnije ih menjaš sa `nano .env` (snimi: Ctrl+O pa Enter, izađi: Ctrl+X).
 
 - **Gemini (besplatno):** <https://aistudio.google.com/apikey> → *Create API key* → kopiraj.
 - **Groq (besplatno):** <https://console.groq.com/keys> → *Create API Key* → kopiraj.
@@ -136,7 +138,8 @@ Za buduću verziju za firme pravi put je zvanični **WhatsApp Business (Cloud) A
 ## Pozivi — šta je moguće
 
 - **Propušten poziv:** Jarvis ti kaže ko je zvao i kontekst („Marko — poslednji kontakt pre 3 dana
-  (WhatsApp): ‚Kad završavaš sajt?‘”) i predloži SMS (ili WhatsApp, `FOLLOWUP_CHANNEL`) — ti odobriš.
+  (WhatsApp): ‚Kad završavaš sajt?‘”) i predloži poruku — ti odobriš. Na **običan** poziv odgovara
+  **SMS-om**, na **WhatsApp** poziv **WhatsApp porukom** (`FOLLOWUP_CHANNEL=auto`; može i `sms`/`whatsapp`).
 - **„Pozovi Marka”:** posle tvog ✅ telefon okrene broj, ti pričaš.
 - **AI se javlja umesto tebe / Jarvis tebe zove i priča:** nije moguće besplatno — Android ne pušta
   aplikacije da govore u GSM pozivu. Rešenje je plaćeni **Twilio** modul (broj + preusmeravanje kad se

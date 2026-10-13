@@ -125,7 +125,8 @@ class Jarvis:
                                             cfg.default_country_code))
             if cfg.whatsapp_mode == "notifications":
                 self.watchers.append(WhatsAppNotificationWatcher(
-                    self.db, cfg.whatsapp_poll_seconds, self.termux, self.inbox.on_message, self._phone_for_name))
+                    self.db, cfg.whatsapp_poll_seconds, self.termux, self.inbox.on_message, self._phone_for_name,
+                    on_call=self.inbox.on_call))
         if self.gmail:
             self.watchers.append(GmailWatcher(self.db, cfg.gmail_poll_seconds, self.gmail, cfg.gmail_query,
                                               self.inbox.on_message))
@@ -264,6 +265,22 @@ class Jarvis:
             text=str(data.get("text") or ""), is_group=bool(data.get("is_group")),
             meta={"chat_id": chat_id},
         ))
+
+    async def on_whatsapp_bridge_call(self, data: dict[str, Any]) -> None:
+        """The bridge reports WhatsApp calls; only unanswered ones matter."""
+        if data.get("status") not in {"timeout", "reject"}:
+            return
+        call_id = str(data.get("id") or "")
+        if call_id:
+            if self.db.query_one("SELECT 1 FROM seen WHERE source = 'whatsapp_call' AND key = ?", (call_id,)):
+                return
+            self.db.execute("INSERT INTO seen(source, key, created_at) VALUES('whatsapp_call', ?, ?)",
+                            (call_id, utcnow()))
+        phone = str(data.get("phone") or "")
+        await self.inbox.on_call({
+            "number": phone or str(data.get("chat_id") or ""), "name": str(data.get("name") or ""),
+            "type": "MISSED", "channel": "whatsapp", "chat_id": str(data.get("chat_id") or ""),
+        })
 
     async def on_whatsapp_pairing(self, code: str) -> None:
         self.whatsapp_pairing_code = code

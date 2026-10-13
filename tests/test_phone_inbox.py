@@ -23,7 +23,7 @@ def test_normalize_phone():
 def test_parse_whatsapp_notifications():
     wa = "com.whatsapp"
     assert parse_whatsapp_notification({"packageName": wa, "title": "Marko", "content": "Gde si?"}) == {
-        "sender": "Marko", "text": "Gde si?", "is_group": False, "group": ""}
+        "kind": "message", "sender": "Marko", "text": "Gde si?", "is_group": False, "group": ""}
     group = parse_whatsapp_notification({"packageName": wa, "title": "Porodica: Ana", "content": "Ručak u 2"})
     assert group["is_group"] and group["sender"] == "Ana" and group["group"] == "Porodica"
     assert parse_whatsapp_notification({"packageName": wa, "title": "Marko (2 messages)", "content": "x"})["sender"] == "Marko"
@@ -216,3 +216,64 @@ async def test_block_raw_number_via_tool(make_jarvis):
     result = await load_tools()["set_contact_rule"].func(j.tool_context(), name="060 123 4567", rule="block")
     assert "block" in result
     assert await j.inbox.on_message(IncomingMessage("sms", "+381601234567", "", "Kupi!")) is None
+
+
+
+def test_parse_whatsapp_call_notifications():
+    wa = "com.whatsapp"
+    p = lambda title, content: parse_whatsapp_notification({"packageName": wa, "title": title, "content": content})
+    for missed in ("Missed voice call", "Propušten glasovni poziv", "Пропуштен гласовни позив", "Missed video call"):
+        r = p("Marko", missed)
+        assert (r["kind"], r["sender"]) == ("missed_call", "Marko"), missed
+    assert p("Propušteni glasovni poziv", "Marko")["sender"] == "Marko"  # name in the other field
+    # Ringing / ongoing calls must never be treated as messages to answer.
+    for live in ("Incoming voice call", "Dolazni glasovni poziv", "Долазни гласовни позив", "Ongoing video call"):
+        assert p("Marko", live) is None, live
+    assert p("2 missed voice calls", "Marko, Ana") is None  # several callers: skip
+    assert p("Marko", "4 нове поруке") is None
+    assert p("Marko", "Zovi me kad stigneš")["kind"] == "message"  # a normal text mentioning calls
+
+
+async def test_missed_whatsapp_call_gets_whatsapp_followup(make_jarvis):
+    termux = FakeTermux()
+    j = make_jarvis(termux=termux)
+    j.contacts.upsert("Marko", phone="0641234567")
+    watcher = next(w for w in j.watchers if w.name == "whatsapp_notif")
+    await watcher.poll_once()
+    termux.notif_list.append({"packageName": "com.whatsapp", "title": "Marko", "content": "Propušten glasovni poziv",
+                              "when": 5})
+    await watcher.poll_once()
+    [draft] = j.queue.list_by_status("pending")
+    assert (draft.channel, draft.recipient) == ("whatsapp", "+381641234567")
+    assert any("Propušten WhatsApp poziv: Marko" in a[2] for a in termux.of("notify"))
+
+
+async def test_missed_regular_call_gets_sms_followup(make_jarvis):
+    j = make_jarvis(termux=FakeTermux())
+    action = await j.inbox.on_call({"number": "+381641234567", "name": "Marko", "type": "MISSED"})
+    assert action.channel == "sms"
+
+
+async def test_forced_followup_channel(make_jarvis):
+    j = make_jarvis(termux=FakeTermux(), followup_channel="whatsapp")
+    action = await j.inbox.on_call({"number": "+381641234567", "name": "Marko", "type": "MISSED"})
+    assert action.channel == "whatsapp"
+
+
+async def test_whatsapp_call_from_unknown_name_only_notifies(make_jarvis):
+    termux = FakeTermux()
+    j = make_jarvis(termux=termux)
+    assert await j.inbox.on_call({"number": "Nepoznati", "name": "Nepoznati", "type": "MISSED",
+                                  "channel": "whatsapp"}) is None
+    assert any("Propušten WhatsApp poziv" in a[2] for a in termux.of("notify"))
+
+
+async def test_bridge_missed_call_hook(make_jarvis):
+    j = make_jarvis(whatsapp_mode="bridge", whatsapp_bridge_token="bt")
+    call = {"id": "C1", "chat_id": "555@lid", "phone": "+381641234567", "status": "timeout"}
+    await j.on_whatsapp_bridge_call({**call, "status": "offer"})  # ringing: ignored
+    assert j.queue.list_by_status("pending") == []
+    await j.on_whatsapp_bridge_call(call)
+    await j.on_whatsapp_bridge_call(call)  # duplicate
+    [draft] = j.queue.list_by_status("pending")
+    assert draft.channel == "whatsapp" and draft.payload["chat_id"] == "555@lid"

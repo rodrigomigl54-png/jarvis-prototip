@@ -134,9 +134,9 @@ class WhatsAppNotificationWatcher(Watcher):
     name = "whatsapp_notif"
 
     def __init__(self, db, interval, termux: Termux, on_message: Callable[[IncomingMessage], Awaitable[None]],
-                 resolve_name: Callable[[str], str]):
+                 resolve_name: Callable[[str], str], on_call: Callable[[dict], Awaitable[None]] | None = None):
         super().__init__(db, interval)
-        self.termux, self.on_message, self.resolve_name = termux, on_message, resolve_name
+        self.termux, self.on_message, self.resolve_name, self.on_call = termux, on_message, resolve_name, on_call
 
     async def fetch(self):
         out = []
@@ -151,6 +151,11 @@ class WhatsAppNotificationWatcher(Watcher):
     async def handle(self, p: dict) -> None:
         # Notifications only carry the contact *name*; look up the number for replies.
         number = self.resolve_name(p["sender"])
+        if p.get("kind") == "missed_call":
+            if self.on_call:
+                await self.on_call({"number": number or p["sender"], "name": p["sender"], "type": "MISSED",
+                                    "channel": "whatsapp"})
+            return
         await self.on_message(
             IncomingMessage(
                 channel="whatsapp", sender_id=number or p["sender"], sender_name=p["sender"], text=p["text"],

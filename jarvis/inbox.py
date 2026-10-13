@@ -25,7 +25,7 @@ class Inbox:
         hub: Hub,
         on_new_action: Callable[[PendingAction], Awaitable[None]],
         channels: Callable[[], list[str]],
-        followup_channel: str = "sms",
+        followup_channel: str = "auto",
         include_groups: bool = False,
         followup_template: str = DEFAULT_FOLLOWUP,
     ):
@@ -86,6 +86,16 @@ class Inbox:
         await self.on_new_action(action)
         return action
 
+    def followup_channel_for(self, source: str) -> str | None:
+        """'auto': a regular call is answered by SMS, a WhatsApp call on WhatsApp."""
+        wanted = self.followup_channel
+        if wanted == "auto":
+            wanted = "whatsapp" if source == "whatsapp" else "sms"
+        available = self.channels()
+        if wanted in available:
+            return wanted
+        return "sms" if "sms" in available else None
+
     async def on_call(self, call: dict) -> PendingAction | None:
         number, kind = call["number"], call["type"]
         name = self.contacts.display_name(number, call.get("name", ""))
@@ -93,20 +103,23 @@ class Inbox:
             self.contacts.log_interaction("phone", number, "call", call.get("duration", ""), name)
             return None
 
+        source = call.get("channel", "phone")  # phone | whatsapp
         context = self.contacts.context_for(number)
-        self.contacts.log_interaction("phone", number, "missed_call", "", name)
-        await self.hub.notify("call", f"📞 Propušten poziv: {name}", f"{number} · {context}", speak=True)
+        self.contacts.log_interaction(source, number, "missed_call", "", name)
+        what = "WhatsApp poziv" if source == "whatsapp" else "poziv"
+        await self.hub.notify("call", f"📞 Propušten {what}: {name}", f"{number} · {context}", speak=True)
 
         if not number.startswith("+") or self.contacts.is_blocked(number):
-            return None  # hidden / short numbers, or blocked
-        channel = self.followup_channel if self.followup_channel in self.channels() else "sms"
-        if channel not in self.channels():
+            return None  # hidden / short numbers, unknown WhatsApp names, or blocked
+        channel = self.followup_channel_for(source)
+        if channel is None:
             return None
         contact = self.contacts.by_phone(number)
         first = f" {contact.first_name}" if contact else ""
         action = self.queue.submit(
             "message", channel, number,
-            {"text": self.followup_template.format(name=first), "recipient_name": name, "reason": "missed_call"},
+            {"text": self.followup_template.format(name=first), "recipient_name": name, "reason": "missed_call",
+             **({"chat_id": call["chat_id"]} if call.get("chat_id") else {})},
             source="inbox:missed_call",
         )
         await self.on_new_action(action)

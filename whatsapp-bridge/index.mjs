@@ -131,6 +131,21 @@ async function connect() {
       })
     }
   })
+
+  // Missed WhatsApp calls -> Jarvis drafts a WhatsApp follow-up (after your approval).
+  sock.ev.on('call', async (calls) => {
+    for (const c of calls) {
+      if (c.isGroup || !['timeout', 'reject'].includes(c.status)) continue
+      const pn = c.callerPn || (c.from?.endsWith('@s.whatsapp.net') ? c.from : '')
+      await postToJarvis('/api/hooks/whatsapp/call', {
+        id: c.id,
+        chat_id: c.chatId || c.from,
+        phone: pn ? '+' + jidNormalizedUser(pn).split('@')[0] : '',
+        status: c.status,
+        is_video: Boolean(c.isVideo),
+      })
+    }
+  })
 }
 
 // --- local HTTP API ---------------------------------------------------------

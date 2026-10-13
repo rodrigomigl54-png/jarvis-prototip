@@ -22,8 +22,13 @@ from ..phone.termux import Termux
 from .base import ChannelAdapter
 
 WHATSAPP_PACKAGES = {"com.whatsapp", "com.whatsapp.w4b"}
-# Summary lines such as "5 new messages", "3 messages from 2 chats", "4 nove poruke".
-_SUMMARY = re.compile(r"^\d+\s+(new\s+)?(messages?|nov\w*\s+poruk\w*|poruk\w*)\b", re.IGNORECASE)
+# Summary lines such as "5 new messages", "3 messages from 2 chats", "4 nove poruke", "4 нове поруке".
+_SUMMARY = re.compile(
+    r"^\d+\s+(new\s+)?(messages?|nov\w*\s+poruk\w*|poruk\w*|нов\w*\s+порук\w*|порук\w*)(\s|$)", re.IGNORECASE
+)
+# Call notifications (English / Serbian latin / Serbian cyrillic WhatsApp UI).
+_CALL = re.compile(r"(voice|video)\s+call|(glasovn|video)\w*\s+poziv|(гласовн|видео)\w*\s+позив", re.IGNORECASE)
+_MISSED = re.compile(r"missed|propu[sš]ten|пропуштен", re.IGNORECASE)
 
 
 class WhatsAppNotificationChannel(ChannelAdapter):
@@ -62,8 +67,9 @@ class WhatsAppBridgeChannel(ChannelAdapter):
 
 
 def parse_whatsapp_notification(n: dict) -> dict | None:
-    """Turn one termux-notification-list entry into {sender, text, is_group}.
-    Returns None for summary notifications ("5 new messages") and non-WhatsApp ones."""
+    """Turn one termux-notification-list entry into
+    {kind: "message"|"missed_call", sender, text, is_group, group}.
+    Returns None for summaries ("5 new messages"), ringing/ongoing calls and other apps."""
     if n.get("packageName") not in WHATSAPP_PACKAGES:
         return None
     title = (n.get("title") or "").strip()
@@ -72,6 +78,12 @@ def parse_whatsapp_notification(n: dict) -> dict | None:
         return None
     if _SUMMARY.match(content):
         return None
+    for label, name in ((content, title), (title, content)):
+        if _CALL.search(label):
+            # Missed call: the other field is the caller. Ringing / ongoing calls are ignored.
+            if not _MISSED.search(label) or "," in name or _CALL.search(name):
+                return None
+            return {"kind": "missed_call", "sender": name, "text": label, "is_group": False, "group": ""}
     # Group notifications look like "Group name: Sender" or "Group (3 messages): Sender".
     is_group = ": " in title
     sender = title.split(": ", 1)[-1] if is_group else title
@@ -80,4 +92,4 @@ def parse_whatsapp_notification(n: dict) -> dict | None:
     for suffix in (" messages)", " poruke)", " poruka)"):
         if suffix in sender:
             sender = sender.rsplit(" (", 1)[0]
-    return {"sender": sender.strip(), "text": content, "is_group": is_group, "group": group}
+    return {"kind": "message", "sender": sender.strip(), "text": content, "is_group": is_group, "group": group}

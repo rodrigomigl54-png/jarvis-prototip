@@ -172,6 +172,10 @@ def create_app(j: "Jarvis") -> web.Application:
         await j.on_whatsapp_bridge(await request.json())
         return web.json_response({"ok": True})
 
+    async def wa_call(request: web.Request) -> web.Response:
+        await j.on_whatsapp_bridge_call(await request.json())
+        return web.json_response({"ok": True})
+
     async def wa_pairing(request: web.Request) -> web.Response:
         await j.on_whatsapp_pairing(str((await request.json()).get("code", "")))
         return web.json_response({"ok": True})
@@ -189,4 +193,5 @@ def create_app(j: "Jarvis") -> web.Application:
     app.router.add_get("/api/google/login", google_login)
     app.router.add_post("/api/hooks/whatsapp", wa_hook)
     app.router.add_post("/api/hooks/whatsapp/pairing", wa_pairing)
+    app.router.add_post("/api/hooks/whatsapp/call", wa_call)
     return app

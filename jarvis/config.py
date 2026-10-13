@@ -49,7 +49,7 @@ class Config:
 
     # --- phone (Android / Termux:API) ---
     phone_mode: str = "auto"  # auto | on | off
-    followup_channel: str = "sms"  # sms | whatsapp
+    followup_channel: str = "auto"  # auto (same as the call) | sms | whatsapp
     calls_poll_seconds: int = 20
     sms_poll_seconds: int = 30
 
@@ -155,7 +155,7 @@ def load_config() -> Config:
         telegram_bot_token=_env("TELEGRAM_BOT_TOKEN"),
         owner_telegram_id=int(owner_tg or "0"),
         phone_mode=_env("PHONE_MODE", "auto").lower(),
-        followup_channel=_env("FOLLOWUP_CHANNEL", "sms").lower(),
+        followup_channel=_env("FOLLOWUP_CHANNEL", "auto").lower(),
         calls_poll_seconds=_int("CALLS_POLL_SECONDS", 20),
         sms_poll_seconds=_int("SMS_POLL_SECONDS", 30),
         whatsapp_mode=whatsapp_mode,
