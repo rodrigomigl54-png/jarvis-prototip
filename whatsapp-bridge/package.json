@@ -1,0 +1,11 @@
+{
+  "name": "jarvis-whatsapp-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OPTIONAL, UNOFFICIAL WhatsApp bridge for Jarvis (Baileys). Can get your number banned.",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": { "start": "node index.mjs" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "@whiskeysockets/baileys": "7.0.0-rc14" }
+}

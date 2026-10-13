@@ -1,0 +1,7 @@
+.venv
+.git
+data
+.env
+tests
+whatsapp-bridge/node_modules
+whatsapp-bridge/auth

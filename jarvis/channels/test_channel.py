@@ -10,10 +10,12 @@ from .base import ChannelAdapter
 
 class TestChannel(ChannelAdapter):
     name = "test"
+    label = "Test"
     __test__ = False  # not a pytest test class
 
     def __init__(self, notify_owner: Callable[[str], Awaitable[None]]):
         self._notify_owner = notify_owner
 
-    async def send(self, recipient: str, text: str) -> None:
-        await self._notify_owner(f"🧪 [test kanal] Poslato za „{recipient}”:\n\n{text}")
+    async def send(self, action) -> str | None:
+        await self._notify_owner(f"🧪 [test kanal] Poslato za „{action.recipient}”:\n\n{action.text}")
+        return None

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
+
+if TYPE_CHECKING:
+    from ..approval.queue import PendingAction
 
 
 @dataclass
@@ -16,6 +19,7 @@ class IncomingMessage:
     sender_name: str
     text: str
     is_group: bool = False
+    meta: dict[str, Any] = field(default_factory=dict)  # e.g. email subject/thread id
 
 
 IncomingHandler = Callable[[IncomingMessage], Awaitable[None]]
@@ -23,6 +27,7 @@ IncomingHandler = Callable[[IncomingMessage], Awaitable[None]]
 
 class ChannelAdapter(ABC):
     name: str
+    label: str = ""  # human name shown in the HUD, e.g. "SMS"
 
     async def start(self, on_incoming: IncomingHandler) -> None:
         """Begin listening for incoming messages (optional for send-only channels)."""
@@ -31,5 +36,6 @@ class ChannelAdapter(ABC):
         """Release connections."""
 
     @abstractmethod
-    async def send(self, recipient: str, text: str) -> None:
-        """Deliver ``text`` to ``recipient``. Must only be called by the Executor."""
+    async def send(self, action: "PendingAction") -> str | None:
+        """Carry out an approved action. Must only be called by the Executor.
+        May return a short note for the owner (e.g. "otvoreno u WhatsApp-u")."""

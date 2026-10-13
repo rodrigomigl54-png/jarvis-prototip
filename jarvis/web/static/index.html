@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020914">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Jarvis</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/hud.css">
+</head>
+<body>
+<div class="hud">
+  <nav class="days" id="days" aria-label="Dani u mesecu"></nav>
+
+  <div class="grid">
+    <!-- LEFT: date ring, gauges, tasks -->
+    <section class="col left">
+      <div class="panel">
+        <div class="rings">
+          <div class="ring" aria-label="Datum">
+            <svg viewBox="0 0 200 200">
+              <circle class="track" cx="100" cy="100" r="88" stroke-width="10"/>
+              <circle class="arc" id="dateArc" cx="100" cy="100" r="88" stroke-width="10"
+                      stroke-dasharray="553" stroke-dashoffset="553" transform="rotate(-90 100 100)"/>
+              <g class="spin-slow"><circle cx="100" cy="100" r="72" fill="none" stroke="var(--cyan-dim)" stroke-width="1" stroke-dasharray="2 6"/></g>
+            </svg>
+            <div class="label"><div class="small" id="month">—</div><div class="big" id="dayNum">--</div><div class="tiny" id="weekday">—</div></div>
+          </div>
+          <div class="ring" aria-label="Sat">
+            <svg viewBox="0 0 200 200">
+              <circle class="track" cx="100" cy="100" r="88" stroke-width="6"/>
+              <circle class="arc" id="secArc" cx="100" cy="100" r="88" stroke-width="6"
+                      stroke-dasharray="553" stroke-dashoffset="553" transform="rotate(-90 100 100)"/>
+              <g class="spin-rev"><circle cx="100" cy="100" r="76" fill="none" stroke="var(--cyan-dim)" stroke-width="3" stroke-dasharray="40 14 4 14"/></g>
+            </svg>
+            <div class="label"><div class="big" id="clock">--:--</div><div class="small" id="cityName">Novi Sad</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Sistem <span class="count"><span class="offline-dot" id="liveDot" title="Veza sa Jarvisom"></span></span></h2>
+        <div class="gauges">
+          <div class="gauge"><div class="ring"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" stroke-width="7"/><circle class="arc" id="gBattery" cx="50" cy="50" r="42" stroke-width="7" stroke-dasharray="264" stroke-dashoffset="264" transform="rotate(-90 50 50)"/></svg><div class="label"><div class="big" id="vBattery">–</div></div></div><div class="cap">Energija</div></div>
+          <div class="gauge"><div class="ring"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" stroke-width="7"/><circle class="arc" id="gPending" cx="50" cy="50" r="42" stroke-width="7" stroke-dasharray="264" stroke-dashoffset="264" transform="rotate(-90 50 50)"/></svg><div class="label"><div class="big" id="vPending">0</div></div></div><div class="cap">Na čekanju</div></div>
+          <div class="gauge"><div class="ring"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" stroke-width="7"/><circle class="arc" id="gTasks" cx="50" cy="50" r="42" stroke-width="7" stroke-dasharray="264" stroke-dashoffset="264" transform="rotate(-90 50 50)"/></svg><div class="label"><div class="big" id="vTasks">0</div></div></div><div class="cap">Zadaci</div></div>
+        </div>
+        <div class="chips" id="channels" style="margin-top:10px"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Zadaci <span class="count" id="taskCount"></span></h2>
+        <ul class="list" id="tasks"></ul>
+      </div>
+
+      <div class="panel">
+        <h2>Podsetnici</h2>
+        <ul class="list" id="reminders"></ul>
+      </div>
+    </section>
+
+    <!-- CENTER: reactor + conversation + approvals -->
+    <section class="col center">
+      <div class="chips" id="controls">
+        <button class="chip danger" id="btnStop" title="Zaustavi sve odlazne akcije">Stop</button>
+        <button class="chip" id="btnDnd" title="Ne uznemiravaj">DND</button>
+        <button class="chip" data-mode="tekst">Tekst</button>
+        <button class="chip" data-mode="glas">Glas</button>
+        <button class="chip" data-mode="oba">Oba</button>
+        <button class="chip" id="btnBrief">Brifing</button>
+        <button class="chip hidden" id="btnGoogle">Poveži Google</button>
+      </div>
+
+      <div class="reactor-wrap">
+        <button class="reactor" id="reactor" aria-label="Pritisni i pričaj sa Jarvisom">
+          <svg viewBox="0 0 400 400" aria-hidden="true">
+            <defs>
+              <radialGradient id="coreGrad" cx="50%" cy="45%" r="55%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="35%" stop-color="#9ff3ff"/>
+                <stop offset="70%" stop-color="#14bfe6"/>
+                <stop offset="100%" stop-color="#03384f"/>
+              </radialGradient>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g filter="url(#glow)" fill="none" stroke="#1ae4ff">
+              <g class="r3"><circle cx="200" cy="200" r="190" stroke-width="1.5" stroke-dasharray="3 9" opacity=".7"/></g>
+              <g class="r1"><circle cx="200" cy="200" r="172" stroke-width="10" stroke-dasharray="120 30 40 30" opacity=".55"/></g>
+              <g class="red-arc"><path d="M 200 40 A 160 160 0 0 1 330 105" stroke="#ff3d5e" stroke-width="5" opacity=".9"/></g>
+              <g class="r2"><circle cx="200" cy="200" r="150" stroke-width="2" stroke-dasharray="60 12 8 12" /></g>
+              <g class="r4"><circle cx="200" cy="200" r="128" stroke-width="16" stroke-dasharray="18 10" opacity=".45"/></g>
+              <circle cx="200" cy="200" r="108" stroke-width="2" opacity=".8"/>
+              <g class="r2"><circle cx="200" cy="200" r="96" stroke-width="6" stroke-dasharray="90 20" opacity=".7"/></g>
+              <circle cx="200" cy="200" r="84" stroke-width="1" opacity=".6"/>
+            </g>
+            <g class="core">
+              <circle cx="200" cy="200" r="70" fill="url(#coreGrad)" filter="url(#glow)"/>
+              <circle cx="200" cy="200" r="70" fill="none" stroke="#e8fdff" stroke-width="2"/>
+              <circle cx="200" cy="200" r="40" fill="none" stroke="#035a78" stroke-width="10" opacity=".5"/>
+              <circle cx="200" cy="200" r="18" fill="#ffffff" opacity=".9"/>
+            </g>
+          </svg>
+        </button>
+        <div class="reactor-status" id="reactorStatus">Dodirni i pričaj</div>
+        <div class="brand">STARK · JARVIS</div>
+      </div>
+
+      <div class="panel hidden" id="pairingPanel">
+        <h2>WhatsApp povezivanje</h2>
+        <div class="pairing" id="pairingCode"></div>
+        <div class="muted">WhatsApp → Povezani uređaji → Poveži uređaj → „Poveži brojem telefona”.</div>
+      </div>
+
+      <div class="approvals" id="approvals"></div>
+
+      <div class="panel">
+        <h2>Razgovor</h2>
+        <div class="transcript" id="transcript" aria-live="polite"></div>
+        <form class="composer" id="composer">
+          <input id="input" autocomplete="off" placeholder="Piši Jarvisu… ili /pomoc" enterkeyhint="send">
+          <button class="btn solid" type="submit">Pošalji</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- RIGHT: weather, calendar, feed -->
+    <section class="col right">
+      <div class="panel">
+        <h2>Vreme <span class="count" id="wxCity"></span></h2>
+        <div id="weather"><div class="empty">Učitavam…</div></div>
+      </div>
+      <div class="panel">
+        <h2>Kalendar · danas</h2>
+        <ul class="list" id="calendar"></ul>
+      </div>
+      <div class="panel">
+        <h2>Novosti</h2>
+        <ul class="list feed" id="feed"></ul>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div class="overlay hidden" id="tokenOverlay">
+  <div class="panel">
+    <h2>Pristup</h2>
+    <p class="muted">Otvori Jarvisa preko linka koji ti je ispisao u Termuxu (sadrži ključ), ili nalepi ključ ovde.</p>
+    <form id="tokenForm" class="composer"><input id="tokenInput" placeholder="HUD ključ"><button class="btn solid">OK</button></form>
+  </div>
+</div>
+
+<script src="/static/hud.js"></script>
+</body>
+</html>

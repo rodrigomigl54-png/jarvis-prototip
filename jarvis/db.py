@@ -58,6 +58,82 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action_id  INTEGER,
     details    TEXT NOT NULL DEFAULT '{}'
 );
+-- Tasks ("dodaj zadatak ...") and one-off reminders ("podseti me ...").
+CREATE TABLE IF NOT EXISTS tasks (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT NOT NULL,
+    due_at     TEXT,                    -- ISO local datetime or NULL
+    priority   INTEGER NOT NULL DEFAULT 2,  -- 1 high, 2 normal, 3 low
+    project    TEXT,
+    done       INTEGER NOT NULL DEFAULT 0,
+    done_at    TEXT,
+    nudged_on  TEXT,                    -- local date of the last overdue nudge
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    text       TEXT NOT NULL,
+    due_at     TEXT NOT NULL,           -- ISO UTC datetime
+    fired      INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    text       TEXT NOT NULL,
+    tags       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS contacts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    phone      TEXT,                    -- normalized +381...
+    email      TEXT,
+    rule       TEXT NOT NULL DEFAULT '',  -- '' | allow | block
+    UNIQUE(name, phone)
+);
+
+-- Who wrote/called and when; gives Jarvis context ("pre 3 dana ste pričali o sajtu").
+CREATE TABLE IF NOT EXISTS interactions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel    TEXT NOT NULL,
+    contact    TEXT NOT NULL,           -- phone / email / chat id
+    name       TEXT NOT NULL DEFAULT '',
+    direction  TEXT NOT NULL,           -- in | out | missed_call | call
+    text       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+-- Approved replies, used as few-shot examples so drafts sound like the owner.
+CREATE TABLE IF NOT EXISTS style_examples (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel    TEXT NOT NULL,
+    incoming   TEXT NOT NULL,
+    reply      TEXT NOT NULL,
+    edited     INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+-- Items the watchers have already processed (survives restarts).
+CREATE TABLE IF NOT EXISTS seen (
+    source     TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (source, key)
+);
+
+-- Notifications for the owner (HUD feed + "do not disturb" digest).
+CREATE TABLE IF NOT EXISTS feed (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    text       TEXT NOT NULL DEFAULT '',
+    urgent     INTEGER NOT NULL DEFAULT 0,
+    delivered  INTEGER NOT NULL DEFAULT 1,  -- 0 = held back by DND / quiet hours
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -112,6 +188,14 @@ class Database:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, str(value)),
         )
+
+    def backup(self, dest: str) -> None:
+        target = sqlite3.connect(dest)
+        try:
+            with self._lock:
+                self._conn.backup(target)
+        finally:
+            target.close()
 
     def close(self) -> None:
         self._conn.close()

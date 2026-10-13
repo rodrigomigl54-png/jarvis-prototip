@@ -36,6 +36,7 @@ class Agent:
         specs = [t.spec for t in self.tools.values()]
 
         reply: str | None = None
+        tainted = False  # set once this turn has read text written by others
         try:
             for _ in range(MAX_STEPS):
                 resp = await self.llm.chat(messages, specs)
@@ -52,7 +53,10 @@ class Agent:
                     }
                 )
                 for call in resp.tool_calls:
-                    result = await self._run_tool(call.name, call.arguments, ctx)
+                    result = await self._run_tool(call.name, call.arguments, ctx, tainted)
+                    tool = self.tools.get(call.name)
+                    if tool and tool.untrusted_output:
+                        tainted = True
                     messages.append(
                         {"role": "tool", "tool_call_id": call.id, "name": call.name, "content": result}
                     )
@@ -69,10 +73,17 @@ class Agent:
         self.memory.add_message("assistant", reply)
         return reply
 
-    async def _run_tool(self, name: str, args: dict[str, Any], ctx: ToolContext) -> str:
+    async def _run_tool(self, name: str, args: dict[str, Any], ctx: ToolContext, tainted: bool = False) -> str:
         tool = self.tools.get(name)
         if tool is None:
             return f"Error: unknown tool '{name}'."
+        if tainted and (tool.egress or tool.sensitive):
+            # Untrusted text was read earlier in this turn; it might be steering us.
+            log.warning("Blocked %s after untrusted content in the same turn", name)
+            return (
+                f"Blocked: {name} is not allowed after reading external content in the same request. "
+                "Tell the owner to ask for it in a separate message."
+            )
         try:
             return await tool.func(ctx, **args)
         except TypeError as exc:

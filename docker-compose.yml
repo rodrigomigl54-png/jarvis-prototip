@@ -1,0 +1,14 @@
+# PC alternative to the phone install:  docker compose up -d
+# HUD: http://127.0.0.1:8765  (link with key: docker compose logs jarvis | grep HUD)
+services:
+  jarvis:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PHONE_MODE: "off"
+      HUD_HOST: "0.0.0.0"
+    ports:
+      - "127.0.0.1:8765:8765"   # only reachable from this computer
+    volumes:
+      - ./data:/app/data
